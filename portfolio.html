@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Noa's profolio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Cormorant+Garamond:wght@500;600&family=Pinyon+Script&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#faf8f5;
+    --ink:#171310;
+    --ink-dim:#6c6258;
+    --ink-faint:#a89d8f;
+    --line: rgba(23,19,16,0.12);
+
+    /* brief palette */
+    --c-reflect:#D47073;
+    --c-dark:#DA2E00;
+    --c-mid:#FF3C04;
+    --c-bright:#FF7408;
+    --c-hi:#FFA608;
+
+    --glass-bg: rgba(255,255,255,0.42);
+    --glass-border: rgba(255,255,255,0.75);
+    --glass-shadow: rgba(120,60,20,0.14);
+  }
+
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background: var(--bg);
+    color:var(--ink);
+    font-family:'Space Grotesk', sans-serif;
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{ background: var(--c-mid); color:#fff; }
+  .mono{ font-family:'JetBrains Mono', monospace; }
+
+  #app{ position:fixed; inset:0; z-index:2; }
+  #sphere-canvas{ position:relative; z-index:2; width:100%; height:100%; display:block; cursor: grab; touch-action:none; }
+  #sphere-canvas.dragging{ cursor: grabbing; }
+
+  /* ---------- grounding shadow + light bleed, sit BEHIND the transparent canvas ---------- */
+  #stage-fx{ position:fixed; inset:0; z-index:1; pointer-events:none; }
+  #contact-shadow{
+    position:absolute; left:50%; top:67%; width:420px; height:120px; margin:-60px 0 0 -210px;
+    background: radial-gradient(ellipse at center, rgba(23,19,16,0.16) 0%, rgba(23,19,16,0) 72%);
+    filter: blur(6px);
+  }
+  .light-spot{
+    position:absolute; top:0; left:0; border-radius:50%; filter: blur(34px); mix-blend-mode:normal;
+    will-change: transform, opacity; transform: translate(-50%,-50%);
+  }
+
+  #grain{
+    position:fixed; inset:0; pointer-events:none; z-index:9; opacity:.035; mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+
+  /* ---------- HUD corner brackets ---------- */
+  .corner{ position:fixed; width:26px; height:26px; z-index:5; border-color: rgba(255,60,4,0.45); pointer-events:none; }
+  .corner.tl{ top:22px; left:22px; border-top:1.5px solid; border-left:1.5px solid; }
+  .corner.tr{ top:22px; right:22px; border-top:1.5px solid; border-right:1.5px solid; }
+  .corner.bl{ bottom:22px; left:22px; border-bottom:1.5px solid; border-left:1.5px solid; }
+  .corner.br{ bottom:22px; right:22px; border-bottom:1.5px solid; border-right:1.5px solid; }
+
+  /* ---------- Real glass panels ---------- */
+  .glass{
+    position:fixed; z-index:6;
+    background: linear-gradient(160deg, rgba(255,255,255,0.55), rgba(255,255,255,0.28));
+    border:1px solid var(--glass-border);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    box-shadow: 0 14px 34px var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,0.9), inset 0 0 0 1px rgba(255,116,8,0.10);
+    border-radius:3px;
+  }
+
+  /* ---------- Hero title — sits behind the sphere, sphere overlaps its base ---------- */
+  #hero-title{
+    position:fixed; top:9.5%; left:50%; transform:translateX(-50%);
+    z-index:1; text-align:center; pointer-events:none; white-space:nowrap;
+    line-height:1;
+  }
+  #hero-title .t-serif{
+    font-family:'Cormorant Garamond', 'Californian FB', Georgia, serif;
+    font-weight:600; color:#0e0a07;
+    font-size: clamp(46px, 6.4vw, 104px);
+    letter-spacing:0.005em;
+  }
+  #hero-title .t-script{
+    display:inline-block;
+    font-family:'Pinyon Script', 'Edwardian Script ITC', cursive;
+    color:#3c160a;
+    font-size: clamp(48px, 6.8vw, 112px);
+    margin-left:0.12em;
+    filter: url(#inkBleedFilter);
+  }
+
+  #contact-panel{ bottom:44px; right:44px; padding:22px 30px; min-width:320px; }
+  #contact-panel .eyebrow{ font-size:11px; letter-spacing:0.16em; color: var(--ink-faint); text-transform:uppercase; margin-bottom:12px; }
+  #contact-panel a{
+    display:block; color:var(--ink); text-decoration:none; font-size:15.5px; padding:5px 0;
+    border-bottom:1px solid transparent; transition: color .2s, border-color .2s;
+  }
+  #contact-panel a:hover, #contact-panel a:focus-visible{ color:var(--c-mid); border-color: rgba(255,60,4,0.35); }
+
+  /* ---------- Hotspot dots — nested-square "回" style marker ---------- */
+  .dot{
+    position:absolute; z-index:7; width:20px; height:20px; margin:-10px 0 0 -10px;
+    transform: translate(-50%,-50%); cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .dot::before{
+    content:''; position:absolute; inset:-14px; /* larger invisible tap target for touch */
+  }
+  .dot .core{
+    width:15px; height:15px; background:transparent; border:1.6px solid #171310;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow: 0 1px 4px rgba(23,19,16,0.25);
+    transition: transform .2s ease, border-color .2s ease;
+  }
+  .dot .core .inner{
+    width:5px; height:5px; background:#171310;
+    transition: background .2s ease;
+  }
+  .dot:hover .core, .dot:focus-visible .core{ transform: scale(1.3); border-color: var(--c-hi); }
+  .dot:hover .core .inner, .dot:focus-visible .core .inner{ background: var(--c-hi); }
+  .dot.visited .core{ border-color:#FFA100; }
+  .dot.visited .core .inner{ background:#FFA100; }
+
+  /* ---------- Leader-line callout labels (SVG line + floating text) ---------- */
+  #leader-svg{ position:fixed; inset:0; z-index:6; pointer-events:none; width:100%; height:100%; }
+  #leader-svg line{ stroke:#171310; stroke-width:1; opacity:0; transition: opacity .2s ease; }
+  #leader-svg line.show{ opacity:1; }
+
+  .callout-label{
+    position:fixed; z-index:7; pointer-events:none;
+    font-family:'JetBrains Mono', monospace; font-size:12px; letter-spacing:0.14em; text-transform:uppercase;
+    color:#171310; opacity:0; transition: opacity .2s ease; white-space:nowrap;
+  }
+  .callout-label.show{ opacity:1; }
+
+  /* ---------- Center hint ---------- */
+  #hint{
+    position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:6;
+    font-family:'JetBrains Mono', monospace; font-size:9px; letter-spacing:0.14em;
+    color: var(--ink-faint); text-transform:uppercase; pointer-events:none;
+    opacity:1; transition: opacity .6s ease;
+  }
+  #hint.hide{ opacity:0; }
+
+  /* ---------- Overlay (game-menu style window) ---------- */
+  #overlay{
+    position:fixed; inset:0; z-index:20;
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; pointer-events:none;
+    transition: opacity .35s ease;
+  }
+  #overlay.open{ opacity:1; pointer-events:auto; }
+  #overlay-backdrop{ position:absolute; inset:0; background: rgba(250,248,245,0.7); backdrop-filter: blur(8px); }
+  #overlay-panel{
+    position:relative; width:min(920px, 88vw); height:min(640px, 82vh);
+    background: linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,255,255,0.68));
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border:1px solid rgba(255,255,255,0.8);
+    box-shadow: 0 30px 80px rgba(120,60,20,0.22), inset 0 1px 0 rgba(255,255,255,0.9);
+    display:flex; flex-direction:column;
+    transform: scale(0.94) translateY(14px);
+    transition: transform .35s cubic-bezier(.2,.9,.25,1);
+  }
+  #overlay.open #overlay-panel{ transform: scale(1) translateY(0); }
+  #overlay-panel::before, #overlay-panel::after{ content:""; position:absolute; width:18px; height:18px; border-color: var(--c-mid); pointer-events:none; }
+  #overlay-panel::before{ top:-1px; left:-1px; border-top:2px solid; border-left:2px solid; }
+  #overlay-panel::after{ bottom:-1px; right:-1px; border-bottom:2px solid; border-right:2px solid; }
+
+  #overlay-header{ display:flex; align-items:center; justify-content:space-between; padding:22px 28px; border-bottom:1px solid var(--line); flex-shrink:0; }
+  #overlay-header .eyebrow{ font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:0.18em; color:var(--c-mid); text-transform:uppercase; }
+  #overlay-header h2{ margin:6px 0 0; font-size:24px; font-weight:600; color:var(--ink); }
+  #overlay-close{
+    background:none; border:1px solid var(--line); color:var(--ink-dim); width:34px; height:34px;
+    font-size:16px; cursor:pointer; transition: all .2s ease; flex-shrink:0;
+  }
+  #overlay-close:hover{ color:var(--c-mid); border-color: rgba(255,60,4,0.4); }
+
+  #overlay-body{ padding:26px 28px 32px; overflow-y:auto; flex:1; }
+  #overlay-body::-webkit-scrollbar{ width:8px; }
+  #overlay-body::-webkit-scrollbar-thumb{ background: rgba(255,60,4,0.25); }
+
+  .works-tabs{ display:flex; gap:22px; margin-bottom:20px; border-bottom:1px solid var(--line); }
+  .works-tab-btn{
+    background:none; border:none; cursor:pointer; padding:6px 2px 12px;
+    font-size:12px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-faint);
+    border-bottom:2px solid transparent; transition: color .2s ease, border-color .2s ease;
+  }
+  .works-tab-btn:hover{ color:var(--ink-dim); }
+  .works-tab-btn.active{ color:var(--c-mid); border-bottom-color:var(--c-mid); }
+  .works-empty{ font-size:12px; letter-spacing:0.06em; color:var(--ink-faint); grid-column:1/-1; }
+  .works-caption{ font-size:13px; color:var(--ink-faint); margin:-8px 0 18px; }
+
+  .works-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(230px,1fr)); gap:18px; }
+  .work-card{ display:block; text-decoration:none; color:inherit; border:1px solid var(--line); background: rgba(255,255,255,0.4); transition: border-color .2s ease, transform .2s ease; }
+  .work-card:hover{ border-color: rgba(255,60,4,0.4); transform: translateY(-3px); }
+  .work-thumb{ aspect-ratio: 4/3; width:100%; background: linear-gradient(135deg, var(--thumb-a,#f0c9b0), var(--thumb-b,#f7ebe0)); position:relative; overflow:hidden; }
+  .work-thumb::after{ content:"ADD IMAGE"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.12em; color: rgba(23,19,16,0.28); }
+  .work-info{ padding:14px 16px; }
+  .work-info .tag{ font-family:'JetBrains Mono', monospace; font-size:9.5px; letter-spacing:0.12em; color:var(--c-mid); text-transform:uppercase; }
+  .work-info .title{ margin-top:6px; font-size:15px; font-weight:600; display:flex; align-items:center; gap:6px; color:var(--ink); }
+  .work-info .title .arrow{ font-size:13px; opacity:.6; transition: transform .2s ease; }
+  .work-card:hover .arrow{ transform: translate(2px,-2px); }
+
+  /* ---------- Work detail: title bar + image carousel + description ---------- */
+  .detail-back{
+    background:none; border:1px solid var(--line); cursor:pointer;
+    padding:8px 14px; font-size:11px; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--ink-dim); margin-bottom:20px; transition: color .2s ease, border-color .2s ease;
+  }
+  .detail-back:hover{ color:var(--c-mid); border-color: rgba(255,60,4,0.4); }
+  .detail-titlebar{
+    font-size:20px; font-weight:600; color:var(--ink);
+    margin-bottom:20px; padding-bottom:14px; border-bottom:1px solid var(--line);
+  }
+  .detail-layout{ display:grid; grid-template-columns: 1.6fr 1fr; gap:26px; align-items:start; }
+  .detail-carousel{ position:relative; aspect-ratio:4/3; overflow:hidden; border:1px solid var(--line); background:#eee; }
+  .detail-image{ width:100%; height:100%; }
+  .detail-arrow{
+    position:absolute; top:50%; transform:translateY(-50%); width:36px; height:36px; border-radius:50%;
+    background:rgba(255,255,255,0.8); border:1px solid var(--line); cursor:pointer; font-size:19px; color:var(--ink);
+    display:flex; align-items:center; justify-content:center; line-height:1; transition: border-color .2s ease, background .2s ease;
+  }
+  .detail-arrow-prev{ left:12px; }
+  .detail-arrow-next{ right:12px; }
+  .detail-arrow:hover{ background:#fff; border-color: rgba(255,60,4,0.4); }
+  .detail-info .tag{ font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.12em; color:var(--c-mid); text-transform:uppercase; margin-bottom:12px; }
+  .detail-description{ font-size:14.5px; line-height:1.75; color:var(--ink-dim); margin:0 0 22px; }
+  .detail-link{
+    display:inline-block; font-family:'JetBrains Mono', monospace; font-size:11.5px; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--ink); border:1px solid var(--line); padding:10px 16px; text-decoration:none; transition: color .2s ease, border-color .2s ease;
+  }
+  .detail-link:hover{ color:var(--c-mid); border-color: rgba(255,60,4,0.4); }
+
+  @media (max-width: 640px){
+    .detail-layout{ grid-template-columns: 1fr; }
+  }
+
+  .about-body{ max-width:560px; }
+  .about-body p{ font-size:15px; line-height:1.85; color: var(--ink-dim); margin:0 0 16px; }
+  .about-body strong{ color: var(--ink); font-weight:600; }
+  .skills-row{ display:flex; flex-wrap:wrap; gap:8px; margin-top:22px; }
+  .skill-chip{ font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:0.06em; border:1px solid var(--line); padding:6px 12px; color: var(--ink-dim); }
+
+  .contact-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:28px; max-width:640px; }
+  .contact-block .eyebrow{ font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.14em; color:var(--ink-faint); text-transform:uppercase; margin-bottom:10px; }
+  .contact-block a{ display:block; color:var(--ink); text-decoration:none; font-size:15px; padding:8px 0; border-bottom:1px solid var(--line); transition: color .2s; }
+  .contact-block a:hover{ color:var(--c-mid); }
+
+  .digital-clock{
+    font-family:'JetBrains Mono', monospace; font-size:14px; letter-spacing:0.12em;
+    color:var(--ink-faint); padding-bottom:14px; margin-bottom:16px; border-bottom:1px solid var(--line);
+  }
+  .digital-clock .date-line{ color:var(--ink-dim); }
+  .digital-clock .time-line{ color:var(--c-mid); margin-top:4px; font-size:15px; }
+
+  .web-list{ display:flex; flex-direction:column; gap:12px; max-width:640px; }
+  .web-card{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:16px 18px; border:1px solid var(--line); background: rgba(255,255,255,0.4);
+    text-decoration:none; color:inherit; transition: border-color .2s ease, transform .2s ease;
+  }
+  .web-card:hover{ border-color: rgba(255,60,4,0.4); transform: translateX(3px); }
+  .web-card .tag{ font-family:'JetBrains Mono', monospace; font-size:9.5px; letter-spacing:0.12em; color:var(--c-mid); text-transform:uppercase; display:block; margin-bottom:6px; }
+  .web-card .title{ font-size:16px; font-weight:600; color:var(--ink); }
+  .web-card .arrow{ font-size:16px; opacity:.55; transition: transform .2s ease; flex-shrink:0; }
+  .web-card:hover .arrow{ transform: translate(3px,-3px); opacity:1; }
+
+  .bands-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); gap:20px; max-width:720px; }
+  .band-card{ border:1px solid var(--line); background: rgba(255,255,255,0.4); padding:20px; }
+  .band-card .band-name{ font-size:19px; font-weight:600; color:var(--ink); margin-bottom:10px; }
+  .band-card .band-bio{ font-size:13.5px; line-height:1.7; color:var(--ink-dim); margin-bottom:16px; }
+  .band-links{ display:flex; gap:10px; flex-wrap:wrap; }
+  .band-links a{
+    font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--ink); text-decoration:none; border:1px solid var(--line); padding:7px 12px;
+    transition: border-color .2s ease, color .2s ease;
+  }
+  .band-links a:hover{ border-color: rgba(255,60,4,0.5); color:var(--c-mid); }
+
+  /* ---------- Left-side glass panels: recent update + tagline, randomized on load ---------- */
+  #panel-update{ position:fixed; right:44px; top:20%; z-index:6; max-width:300px; }
+  #panel-tagline{ position:fixed; left:44px; top:58%; transform:translateY(-50%); z-index:6; max-width:260px; display:flex; flex-direction:column; justify-content:center; }
+  .side-card{ padding:22px 24px; }
+  .side-card .eyebrow{ font-size:11px; letter-spacing:0.14em; color:var(--ink-faint); text-transform:uppercase; margin-bottom:10px; }
+  .side-card p{ margin:0; font-size:15px; line-height:1.65; color:var(--ink-dim); }
+
+  /* ---------- "Recent" line: orange title + optional inline body, link optional ---------- */
+  .update-line{
+    display:block; text-decoration:none; color:inherit; line-height:1.6;
+  }
+  .update-line-link{ cursor:pointer; }
+  .update-line-link:hover .update-title{ text-decoration:underline; text-underline-offset:3px; }
+  .update-title{ color:var(--c-mid); font-weight:600; font-size:15px; }
+  .update-body{ color:var(--ink-dim); font-weight:400; font-size:15px; margin-left:2px; }
+
+  /* ---------- "Now playing" card, phone-style: cover + title + artist ---------- */
+  .now-playing-label{
+    font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--c-mid); margin-bottom:16px;
+  }
+  .now-playing{
+    display:flex; flex-direction:column; align-items:flex-start; gap:0; text-decoration:none; color:inherit;
+  }
+  .now-playing-art{
+    width:100%; max-width:190px; aspect-ratio:1/1; border-radius:16px; object-fit:cover;
+    box-shadow: 0 10px 26px rgba(0,0,0,0.3); margin-bottom:16px;
+  }
+  .now-playing-info{ min-width:0; }
+  .now-playing-title{
+    font-size:17px; font-weight:600; color:var(--ink); line-height:1.35;
+  }
+  .now-playing-artist{
+    margin-top:4px; font-size:13.5px; color:var(--ink-dim);
+  }
+
+  @media (max-width: 560px){
+    #panel-update, #panel-tagline{ display:none; }
+  }
+
+  @media (max-height: 480px){
+    #panel-update, #panel-tagline{ display:none; }
+    #hint{ display:none; }
+    .corner{ display:none; }
+    #hero-title{ top:4%; }
+  }
+
+  @media (max-width: 900px){
+    #panel-update, #panel-tagline{ max-width:210px; }
+    .now-playing-art{ max-width:140px; }
+    .side-card{ padding:16px 18px; }
+    #panel-update{ left:auto; right:24px; }
+    #panel-tagline{ left:24px; }
+  }
+
+  @media (max-width: 720px){
+    #hero-title{ top:7%; }
+    #hero-title .t-serif{ font-size: clamp(34px, 9vw, 70px); }
+    #hero-title .t-script{ font-size: clamp(38px, 9vw, 76px); }
+    #contact-panel{ bottom:20px; right:20px; left:20px; min-width:0; }
+    .corner{ display:none; }
+    #overlay-panel{ width:94vw; height:88vh; }
+    .contact-grid{ grid-template-columns:1fr; }
+    .callout-label{ display:none; }
+  }
+  @media (prefers-reduced-motion: reduce){ *{ transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }
+
+
+</style>
+</head>
+<body>
+
+<div id="stage-fx">
+  <div id="contact-shadow"></div>
+  <div class="light-spot" id="spot-0"></div>
+  <div class="light-spot" id="spot-1"></div>
+  <div class="light-spot" id="spot-2"></div>
+</div>
+
+<div id="app">
+  <canvas id="sphere-canvas"></canvas>
+</div>
+
+<div id="grain"></div>
+
+<div class="corner tl"></div>
+<div class="corner tr"></div>
+<div class="corner bl"></div>
+<div class="corner br"></div>
+
+<svg width="0" height="0" style="position:absolute">
+  <filter id="inkBleedFilter" x="-60%" y="-60%" width="220%" height="220%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.012 0.045" numOctaves="2" seed="7" result="noise">
+      <animate attributeName="baseFrequency" values="0.010 0.038;0.017 0.052;0.010 0.038" dur="26s" repeatCount="indefinite"/>
+    </feTurbulence>
+    <feDisplacementMap in="SourceGraphic" in2="noise" scale="14" xChannelSelector="R" yChannelSelector="G" result="bled">
+      <animate attributeName="scale" values="10;22;10" dur="22s" repeatCount="indefinite"/>
+    </feDisplacementMap>
+    <feGaussianBlur in="bled" stdDeviation="0.5">
+      <animate attributeName="stdDeviation" values="0.4 0.4;1.6 0.9;0.4 0.4" dur="20s" repeatCount="indefinite"/>
+    </feGaussianBlur>
+  </filter>
+</svg>
+
+<div id="hero-title">
+  <span class="t-serif">Noa's</span><span class="t-script" data-text="profolio">profolio</span>
+</div>
+
+<div class="glass" id="contact-panel">
+  <div id="hud-clock" class="digital-clock mono">
+    <div class="date-line" id="hud-date">— — —</div>
+    <div class="time-line" id="hud-time">--:--:--</div>
+  </div>
+  <div class="eyebrow">Contact</div>
+  <a href="mailto:noachisnoa@gmail.com">noachisnoa@gmail.com</a>
+  <a href="https://www.instagram.com/_nushuy/" target="_blank" rel="noopener">Instagram ↗</a>
+</div>
+
+<div class="glass side-card" id="panel-update">
+  <div class="eyebrow mono" id="update-eyebrow">Recent</div>
+  <div id="update-text" class="update-line">—</div>
+</div>
+
+<div class="glass side-card" id="panel-tagline">
+  <div class="now-playing-label">In the Queue...</div>
+  <p id="tagline-text">—</p>
+</div>
+
+<div id="hint" class="mono">drag to rotate — click a marker to open</div>
+
+<svg id="leader-svg"><g id="leader-lines"></g></svg>
+<div id="dots-layer"></div>
+<div id="labels-layer"></div>
+
+<div id="overlay">
+  <div id="overlay-backdrop"></div>
+  <div id="overlay-panel">
+    <div id="overlay-header">
+      <div>
+        <div class="eyebrow mono" id="overlay-eyebrow">Section</div>
+        <h2 id="overlay-title">Title</h2>
+      </div>
+      <button id="overlay-close" aria-label="Close">✕</button>
+    </div>
+    <div id="overlay-body"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+/* =========================================================================
+   CONTENT — edit everything in this block to make the site yours.
+   ========================================================================= */
+const CONTENT = {
+  works: [
+    { title: "Project Aurora",   tag: "Branding",        category:"personal", link: "#", colorA:"#f7c9a8", colorB:"#fbeee1", description:"A short write-up about this project — what it was for, what you made, and why it turned out the way it did. Replace this with your own description.", images:[] },
+    { title: "Signal Drift",     tag: "Motion / 3D",     category:"personal", link: "#", colorA:"#f4b28c", colorB:"#faeadb", description:"A short write-up about this project.", images:[] },
+    { title: "Kioku",            tag: "Web Experience",  category:"school",   link: "#", colorA:"#e9a688", colorB:"#f7e6d8", description:"A school project — course, brief, and what you learned.", images:[] },
+    { title: "Nightglass",       tag: "Product Design",  category:"personal", link: "#", colorA:"#f0b48f", colorB:"#f9ecdf", description:"A short write-up about this project.", images:[] },
+    { title: "Terra Mono",       tag: "Editorial",       category:"school",   link: "#", colorA:"#e79c7c", colorB:"#f6e3d4", description:"A school project — course, brief, and what you learned.", images:[] },
+    { title: "Halide",           tag: "Identity System", category:"personal", link: "#", colorA:"#f5b48a", colorB:"#faeee2", description:"A short write-up about this project.", images:[] },
+  ],
+  web: [
+    { title: "Studio Site Rebuild",   tag: "Web Design",   link: "#" },
+    { title: "Interactive Lookbook",  tag: "Web Experience", link: "#" },
+    { title: "E-commerce Landing",    tag: "Front-end Dev", link: "#" },
+  ],
+  music: [
+    {
+      name: "Band One",
+      bio: "A short introduction to this band — genre, vibe, what you play. Replace with the real story.",
+      instagram: "#",
+      streamLabel: "Spotify",
+      streamLink: "#"
+    },
+    {
+      name: "Band Two",
+      bio: "A short introduction to this second band — replace with the real story.",
+      instagram: "#",
+      streamLabel: "StreetVoice",
+      streamLink: "#"
+    }
+  ],
+  about: {
+    paragraphs: [
+      "I'm a <strong>designer and developer</strong> who works across brand, motion, and interactive experiences — this is a placeholder bio, replace it with your own story.",
+      "My practice sits between craft and code: I like building things that feel tactile even inside a browser window."
+    ],
+    skills: ["Art Direction","3D / WebGL","Motion Design","Front-end Dev","Brand Systems"]
+  },
+
+  // ---- "Recent" panel (bottom-left glass card): a single fixed line.
+  // Edit this directly for now. Later, once you set this up in Supabase
+  // yourself, this can be replaced with a live fetch the same way `works` is.
+  update: { title: "Currently working on a new brand identity project.", body: "", link: "" },
+
+  // ---- "Note" panel: one line is picked at random on every page load.
+  taglines: [
+    "Design, sound, and everything in between.",
+    "Visuals by day, feedback by night.",
+    "Two bands, one sketchbook.",
+    "Making things that look good and sound good."
+  ]
+};
+
+/* =========================================================================
+   SUPABASE — read-only data source for `works` (and later, the "Recent"
+   line too, once you set that up yourself). Fill in your own project URL
+   and anon key below (Supabase dashboard → Project Settings → API). The
+   anon key is safe to expose publicly — pair it with a read-only RLS
+   policy on the table. Edit the actual content in Supabase's own table
+   editor — there's no custom admin UI on the site anymore.
+   ========================================================================= */
+const SUPABASE_URL = "https://xmhwrzgirfmwfbcbdmqq.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhtaHdyemdpcmZtd2ZiY2JkbXFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU1MzkzOTMsImV4cCI6MjEwMTExNTM5M30.BxVqYUjt6f2jyFTDZkACHKVbXJdnEQQlyPMOZu3TNvg";
+const sb = (SUPABASE_URL.includes('YOUR-PROJECT-REF'))
+  ? null
+  : window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// The "Note" panel's random Spotify song, served by the spotify-liked-song
+// Edge Function (see spotify-setup-guide.md). Falls back to CONTENT.taglines
+// automatically until this is deployed.
+const SPOTIFY_SONG_ENDPOINT = (SUPABASE_URL.includes('YOUR-PROJECT-REF'))
+  ? null
+  : SUPABASE_URL.replace('.supabase.co', '.functions.supabase.co') + '/spotify-liked-song';
+
+// Mutable working copy of the works list (what the site actually renders),
+// Working copies of each section's content, actually rendered on the site —
+// populated from CONTENT by default, or overwritten by loadContentFromDB()
+// below once you've connected the matching Supabase tables. Edit content
+// directly in the Supabase table editor at that point; there's no in-page
+// admin UI for this anymore.
+let worksData = CONTENT.works.map(w => ({...w}));
+let webData   = CONTENT.web.map(w => ({...w}));
+let musicData = CONTENT.music.map(m => ({...m}));
+let aboutData = { paragraphs: [...CONTENT.about.paragraphs], skills: [...CONTENT.about.skills] };
+let updateData = CONTENT.update || { title:'', body:'', link:'' };
+
+function renderUpdateLine(data){
+  const container = document.getElementById('update-text');
+  const title = (data && data.title) || '';
+  const body = (data && data.body) || '';
+  const link = (data && data.link) || '';
+  const inner = (title ? `<span class="update-title">${title}</span>` : '')
+              + (title && body ? ' ' : '')
+              + (body ? `<span class="update-body">${body}</span>` : '');
+  if(link){
+    container.outerHTML = `<a href="${link}" target="_blank" rel="noopener" id="update-text" class="update-line update-line-link">${inner}</a>`;
+  }else{
+    container.outerHTML = `<div id="update-text" class="update-line">${inner}</div>`;
+  }
+}
+
+function refreshOverlayIfOpen(sectionTitle, renderFn){
+  if(overlay.classList.contains('open') && overlayTitle.textContent === sectionTitle){
+    overlayBody.innerHTML = '';
+    overlayBody.appendChild(renderFn());
+  }
+}
+
+async function loadContentFromDB(){
+  if(!sb) return; // Supabase not configured yet — everything falls back to the hard-coded CONTENT above
+
+  try{
+    const { data, error } = await sb.from('works').select('*').order('sort_order', { ascending:true });
+    if(error) throw error;
+    if(data && data.length){
+      worksData = data.map(row => ({
+        id: row.id, title: row.title, tag: row.tag, link: row.link,
+        img: row.img, colorA: row.color_a, colorB: row.color_b,
+        category: row.category || 'personal', description: row.description || '',
+        images: Array.isArray(row.images) ? row.images : []
+      }));
+      refreshOverlayIfOpen('Works', renderWorks);
+    }
+  }catch(err){ console.error('Could not load works from Supabase:', err); }
+
+  try{
+    const { data, error } = await sb.from('web_links').select('*').order('sort_order', { ascending:true });
+    if(error) throw error;
+    if(data && data.length){
+      webData = data.map(row => ({ id: row.id, title: row.title, tag: row.tag, link: row.link }));
+      refreshOverlayIfOpen('Web', renderWeb);
+    }
+  }catch(err){ console.error('Could not load web links from Supabase:', err); }
+
+  try{
+    const { data, error } = await sb.from('music_acts').select('*').order('sort_order', { ascending:true });
+    if(error) throw error;
+    if(data && data.length){
+      musicData = data.map(row => ({
+        name: row.name, bio: row.bio, instagram: row.instagram,
+        streamLabel: row.stream_label, streamLink: row.stream_link
+      }));
+      refreshOverlayIfOpen('Music', renderMusic);
+    }
+  }catch(err){ console.error('Could not load music acts from Supabase:', err); }
+
+  try{
+    const { data, error } = await sb.from('about_content').select('*').limit(1).maybeSingle();
+    if(error) throw error;
+    if(data){
+      aboutData = { paragraphs: data.paragraphs || [], skills: data.skills || [] };
+      refreshOverlayIfOpen('About', renderAbout);
+    }
+  }catch(err){ console.error('Could not load about content from Supabase:', err); }
+
+  try{
+    const { data, error } = await sb.from('site_status').select('*').limit(1).maybeSingle();
+    if(error) throw error;
+    if(data && (data.title || data.body)){
+      updateData = { title: data.title, body: data.body || '', link: data.link || '' };
+      renderUpdateLine(updateData);
+    }
+  }catch(err){ console.error('Could not load site status from Supabase:', err); }
+}
+
+/* =========================================================================
+   THREE.JS — hand-painted glowing sphere
+   ========================================================================= */
+const canvas = document.getElementById('sphere-canvas');
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth/window.innerHeight, 0.1, 100);
+camera.position.set(0, 0, 6.4);
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x000000, 0);
+
+const sphereGroup = new THREE.Group();
+sphereGroup.position.y = -0.3; // near-centered, bottom edge stays on-screen with margin
+scene.add(sphereGroup);
+
+const NOISE_GLSL = `
+vec3 mod289(vec3 x){ return x - floor(x*(1.0/289.0))*289.0; }
+vec4 mod289(vec4 x){ return x - floor(x*(1.0/289.0))*289.0; }
+vec4 permute(vec4 x){ return mod289(((x*34.0)+1.0)*x); }
+vec4 taylorInvSqrt(vec4 r){ return 1.79284291400159 - 0.85373472095314 * r; }
+float snoise(vec3 v){
+  const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+  vec3 i  = floor(v + dot(v, C.yyy));
+  vec3 x0 = v - i + dot(i, C.xxx);
+  vec3 g = step(x0.yzx, x0.xyz);
+  vec3 l = 1.0 - g;
+  vec3 i1 = min(g.xyz, l.zxy);
+  vec3 i2 = max(g.xyz, l.zxy);
+  vec3 x1 = x0 - i1 + C.xxx;
+  vec3 x2 = x0 - i2 + C.yyy;
+  vec3 x3 = x0 - D.yyy;
+  i = mod289(i);
+  vec4 p = permute( permute( permute(
+            i.z + vec4(0.0, i1.z, i2.z, 1.0))
+          + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+          + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+  float n_ = 0.142857142857;
+  vec3 ns = n_ * D.wyz - D.xzx;
+  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+  vec4 x_ = floor(j * ns.z);
+  vec4 y_ = floor(j - 7.0 * x_);
+  vec4 x = x_ *ns.x + ns.yyyy;
+  vec4 y = y_ *ns.x + ns.yyyy;
+  vec4 h = 1.0 - abs(x) - abs(y);
+  vec4 b0 = vec4(x.xy, y.xy);
+  vec4 b1 = vec4(x.zw, y.zw);
+  vec4 s0 = floor(b0)*2.0 + 1.0;
+  vec4 s1 = floor(b1)*2.0 + 1.0;
+  vec4 sh = -step(h, vec4(0.0));
+  vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+  vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+  vec3 p0 = vec3(a0.xy, h.x);
+  vec3 p1 = vec3(a0.zw, h.y);
+  vec3 p2 = vec3(a1.xy, h.z);
+  vec3 p3 = vec3(a1.zw, h.w);
+  vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+  p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+  vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+  m = m * m;
+  return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+}
+float fbm(vec3 p){
+  float v = 0.0; float a = 0.5;
+  for(int i=0;i<5;i++){ v += a*snoise(p); p *= 2.02; a *= 0.5; }
+  return v;
+}
+`;
+
+const SPHERE_RADIUS = 1.6;
+const sphereGeo = new THREE.SphereGeometry(SPHERE_RADIUS, 160, 160);
+const sphereMat = new THREE.ShaderMaterial({
+  uniforms: { uTime: { value: 0 } },
+  vertexShader: `
+    varying vec3 vPos;
+    varying vec3 vNormal;
+    void main(){
+      vPos = position;
+      vNormal = normalize(normalMatrix * normal);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    ${NOISE_GLSL}
+    varying vec3 vPos;
+    varying vec3 vNormal;
+    uniform float uTime;
+
+    void main(){
+      // ---- brief palette ----
+      vec3 cReflect = vec3(0.831,0.439,0.451); // D47073
+      vec3 cDark    = vec3(0.855,0.180,0.000); // DA2E00
+      vec3 cMid     = vec3(1.000,0.235,0.016); // FF3C04
+      vec3 cBright  = vec3(1.000,0.455,0.031); // FF7408
+      vec3 cHi      = vec3(1.000,0.651,0.031); // FFA608
+
+      // fixed key light (camera space) -> believable painted-ball shading
+      vec3 lightDir = normalize(vec3(-0.55, 0.55, 0.75));
+      float nDotL = dot(vNormal, lightDir);
+
+      // hand-painted wobble: perturb the light term with domain-warped noise
+      vec3 warp = vec3(fbm(vPos*2.0+10.0), fbm(vPos*2.0+20.0), fbm(vPos*2.0+30.0));
+      float paint = fbm(vPos*2.6 + warp*0.7);
+      float nLight = nDotL*1.1 + paint*0.28;
+
+      vec3 col = cDark;
+      col = mix(col, cMid,    smoothstep(-0.55, -0.05, nLight));
+      col = mix(col, cBright, smoothstep(-0.05,  0.40, nLight));
+      col = mix(col, cHi,     smoothstep( 0.32,  0.62, nLight));
+
+      // reflected bounce-light color, patchy, on the shadow side
+      float bounceMask = smoothstep(0.05, -0.6, nLight) * smoothstep(0.25, 0.7, fbm(vPos*1.5 + 50.0));
+      col = mix(col, cReflect, bounceMask*0.5);
+
+      // ---- bright yellow hot-spot, top-left facet catching the strongest light ----
+      vec3 cYellowHi = vec3(1.0, 0.86, 0.42); // warm sunlit yellow
+      float hotMask = smoothstep(0.74, 0.92, nLight) * (0.75 + 0.25*fbm(vPos*3.4 + 5.0));
+      col = mix(col, cYellowHi, hotMask*0.75);
+
+      // ---- thin dusty lavender-mauve bounce light through the shadow, bottom-right ----
+      // a thin streaky sliver rather than scattered blobs: high-frequency noise
+      // along one stretched axis, isolated to a narrow band around its zero-crossing
+      vec3 cCoolBounce = vec3(0.741, 0.663, 0.824); // ~#BDA9D2
+      float streak = fbm(vec3(vPos.x*1.1, vPos.y*7.5, vPos.z*1.1) + 80.0);
+      float thinBand = smoothstep(0.13, 0.0, abs(streak));
+      float shadowGate = smoothstep(0.1, -0.65, nLight);
+      float coolMask = shadowGate * thinBand;
+      col = mix(col, cCoolBounce, coolMask*0.9);
+
+      // visible brush strokes: directional fine noise
+      float strokes = fbm(vec3(vPos.x*10.0, vPos.y*3.2, vPos.z*10.0) + vec3(0.0, uTime*0.0015, 0.0));
+      col += strokes*0.045;
+      float strokes2 = fbm(vec3(vPos.x*3.0, vPos.y*11.0, vPos.z*3.0) - vec3(uTime*0.0012, 0.0, 0.0));
+      col += strokes2*0.03;
+
+      // paper grain
+      float g = fract(sin(dot(vPos.xy*400.0, vec2(12.9898,78.233))) * 43758.5453);
+      col += (g-0.5)*0.025;
+
+      // soft edge falloff towards silhouette (keeps it matte, not glossy)
+      vec3 viewDir = normalize(cameraPosition - vPos);
+      float rim = pow(1.0 - max(dot(viewDir, vNormal), 0.0), 3.0);
+      col = mix(col, cDark*0.85, rim*0.35);
+
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `
+});
+const coreSphere = new THREE.Mesh(sphereGeo, sphereMat);
+sphereGroup.add(coreSphere);
+
+// very slim glow shell — just enough edge light to read as "glowing", not a wash
+const haloGeo = new THREE.SphereGeometry(SPHERE_RADIUS*1.06, 64, 64);
+const haloMat = new THREE.ShaderMaterial({
+  transparent: true,
+  blending: THREE.NormalBlending,
+  depthWrite: false,
+  side: THREE.BackSide,
+  vertexShader: `
+    varying vec3 vNormal;
+    void main(){
+      vNormal = normalize(normalMatrix * normal);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    varying vec3 vNormal;
+    void main(){
+      float intensity = pow(0.55 - dot(vNormal, vec3(0.0,0.0,1.0)), 4.0);
+      vec3 glowColor = vec3(1.0, 0.46, 0.11);
+      gl_FragColor = vec4(glowColor, clamp(intensity,0.0,1.0)*0.35);
+    }
+  `
+});
+const halo = new THREE.Mesh(haloGeo, haloMat);
+sphereGroup.add(halo);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+/* =========================================================================
+   HOTSPOTS
+   ========================================================================= */
+function latLonToVec3(latDeg, lonDeg, r){
+  const lat = latDeg * Math.PI/180;
+  const lon = lonDeg * Math.PI/180;
+  return new THREE.Vector3(
+    r * Math.cos(lat) * Math.sin(lon),
+    r * Math.sin(lat),
+    r * Math.cos(lat) * Math.cos(lon)
+  );
+}
+
+const HOTSPOTS = [
+  { id:'works', label:'Works', lat: 12,  lon: 0   },
+  { id:'web',   label:'Web',   lat: -25, lon: 90  },
+  { id:'music', label:'Music', lat: 30,  lon: 180 },
+  { id:'about', label:'About', lat: -18, lon: 270 },
+];
+
+const dotsLayer = document.getElementById('dots-layer');
+const labelsLayer = document.getElementById('labels-layer');
+const leaderLines = document.getElementById('leader-lines');
+const svgNS = 'http://www.w3.org/2000/svg';
+
+HOTSPOTS.forEach(h => {
+  h.localPos = latLonToVec3(h.lat, h.lon, SPHERE_RADIUS * 1.01);
+
+  const el = document.createElement('div');
+  el.className = 'dot';
+  el.tabIndex = 0;
+  el.setAttribute('role','button');
+  el.setAttribute('aria-label', 'Open ' + h.label);
+  el.innerHTML = `<div class="core"><span class="inner"></span></div>`;
+  el.addEventListener('click', () => { el.classList.add('visited'); openOverlay(h.id); });
+  el.addEventListener('keydown', (e) => { if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openOverlay(h.id); } });
+  el.addEventListener('mouseenter', () => setHover(h.id, true));
+  el.addEventListener('mouseleave', () => setHover(h.id, false));
+  el.addEventListener('focus', () => setHover(h.id, true));
+  el.addEventListener('blur', () => setHover(h.id, false));
+  dotsLayer.appendChild(el);
+  h.el = el;
+
+  const label = document.createElement('div');
+  label.className = 'callout-label mono';
+  label.textContent = h.label;
+  labelsLayer.appendChild(label);
+  h.labelEl = label;
+
+  const line = document.createElementNS(svgNS, 'line');
+  leaderLines.appendChild(line);
+  h.lineEl = line;
+});
+
+function setHover(id, isHover){
+  const h = HOTSPOTS.find(x => x.id === id);
+  if(!h) return;
+  h.labelEl.classList.toggle('show', isHover);
+  h.lineEl.classList.toggle('show', isHover);
+}
+
+function updateHotspots(){
+  const w = window.innerWidth, hgt = window.innerHeight;
+  const cx = w/2, cy = hgt/2;
+  sphereGroup.updateMatrixWorld();
+
+  HOTSPOTS.forEach(h => {
+    const worldPos = h.localPos.clone().applyMatrix4(sphereGroup.matrixWorld);
+    const normal = worldPos.clone().normalize();
+    const viewDir = camera.position.clone().sub(worldPos).normalize();
+    const facing = normal.dot(viewDir);
+
+    const projected = worldPos.clone().project(camera);
+    const x = (projected.x * 0.5 + 0.5) * w;
+    const y = (-projected.y * 0.5 + 0.5) * hgt;
+
+    h.el.style.left = x + 'px';
+    h.el.style.top = y + 'px';
+    const visible = facing > 0.05 && projected.z < 1;
+    h.el.style.opacity = visible ? 1 : 0;
+    h.el.style.pointerEvents = visible ? 'auto' : 'none';
+    if(!visible) setHover(h.id, false);
+
+    // outward callout direction, away from sphere centre on screen
+    let dx = x - cx, dy = y - cy;
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len; dy /= len;
+    const dist = 118;
+    const lx = x + dx*dist;
+    const ly = y + dy*dist;
+
+    h.lineEl.setAttribute('x1', x); h.lineEl.setAttribute('y1', y);
+    h.lineEl.setAttribute('x2', lx); h.lineEl.setAttribute('y2', ly);
+
+    const rightSide = dx >= 0;
+    h.labelEl.style.left = (lx + (rightSide? 10 : -10)) + 'px';
+    h.labelEl.style.top = (ly - 7) + 'px';
+    h.labelEl.style.transform = rightSide ? 'none' : 'translateX(-100%)';
+  });
+}
+
+/* =========================================================================
+   DIGITAL CLOCK + RANDOM PICKS
+   ========================================================================= */
+const hudDate = document.getElementById('hud-date');
+const hudTime = document.getElementById('hud-time');
+function tickClock(){
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2,'0');
+  hudDate.textContent = `${now.getFullYear()}.${pad(now.getMonth()+1)}.${pad(now.getDate())}`;
+  hudTime.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
+tickClock();
+setInterval(tickClock, 1000);
+
+function pickRandom(arr){
+  if(!arr || arr.length === 0) return '';
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+renderUpdateLine(CONTENT.update);
+
+async function loadTaglinePanel(){
+  const el = document.getElementById('tagline-text');
+  if(!SPOTIFY_SONG_ENDPOINT){
+    el.textContent = pickRandom(CONTENT.taglines) || '';
+    return;
+  }
+  try{
+    const res = await fetch(SPOTIFY_SONG_ENDPOINT);
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    el.outerHTML = `
+      <a href="${data.url}" target="_blank" rel="noopener" class="now-playing" id="tagline-text">
+        <img class="now-playing-art" src="${data.albumArt || ''}" alt="">
+        <div class="now-playing-info">
+          <div class="now-playing-title">${data.title}</div>
+          <div class="now-playing-artist">${data.artist}</div>
+        </div>
+      </a>`;
+  }catch(err){
+    console.error('Could not load Spotify song, falling back to taglines pool:', err);
+    el.textContent = pickRandom(CONTENT.taglines) || '';
+  }
+}
+loadTaglinePanel();
+
+/* =========================================================================
+   DRAG TO ROTATE
+   ========================================================================= */
+let isDragging = false;
+let prevX = 0, prevY = 0;
+let velX = 0, velY = 0;
+let rotX = -0.15, rotY = 0.3;
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+sphereGroup.rotation.x = rotX;
+sphereGroup.rotation.y = rotY;
+
+canvas.addEventListener('pointerdown', (e) => {
+  isDragging = true;
+  canvas.classList.add('dragging');
+  prevX = e.clientX; prevY = e.clientY;
+  canvas.setPointerCapture(e.pointerId);
+  document.getElementById('hint').classList.add('hide');
+});
+canvas.addEventListener('pointermove', (e) => {
+  if(!isDragging) return;
+  const dx = e.clientX - prevX;
+  const dy = e.clientY - prevY;
+  prevX = e.clientX; prevY = e.clientY;
+  velY = dx * 0.005;
+  velX = dy * 0.005;
+  rotY += velY;
+  rotX += velX;
+  rotX = Math.max(-1.1, Math.min(1.1, rotX));
+});
+canvas.addEventListener('pointerup', (e) => {
+  isDragging = false;
+  canvas.classList.remove('dragging');
+  try{ canvas.releasePointerCapture(e.pointerId); }catch(err){}
+});
+canvas.addEventListener('pointercancel', () => { isDragging = false; canvas.classList.remove('dragging'); });
+
+/* =========================================================================
+   BACKGROUND LIGHT SPOTS — slow, water-like drifting glow, max 3 on screen
+   ========================================================================= */
+const SPOT_CONFIG = [
+  { el:document.getElementById('spot-0'), size:340, color:'rgba(255,166,8,0.5)',
+    fx:0.0071, fy:0.0053, px:0.4,  py:2.1, ax:0.62, ay:0.46, ox:0.5, oy:0.5,
+    fo:0.021, po:0.6 },
+  { el:document.getElementById('spot-1'), size:260, color:'rgba(255,116,8,0.42)',
+    fx:0.0048, fy:0.0066, px:2.8,  py:0.7, ax:0.55, ay:0.52, ox:0.5, oy:0.5,
+    fo:0.017, po:3.1 },
+  { el:document.getElementById('spot-2'), size:220, color:'rgba(212,112,115,0.44)',
+    fx:0.0062, fy:0.0039, px:5.0,  py:3.6, ax:0.5,  ay:0.58, ox:0.5, oy:0.5,
+    fo:0.024, po:1.8 },
+];
+SPOT_CONFIG.forEach(s => {
+  s.el.style.width = s.size + 'px';
+  s.el.style.height = s.size + 'px';
+  s.el.style.background = `radial-gradient(circle, ${s.color}, transparent 70%)`;
+});
+
+function updateLightSpots(tSec){
+  const w = window.innerWidth, h = window.innerHeight;
+  SPOT_CONFIG.forEach(s => {
+    const x = (s.ox + s.ax * Math.sin(tSec*s.fx + s.px) * Math.cos(tSec*s.fx*0.37 + s.py*0.5)) * w;
+    const y = (s.oy + s.ay * Math.cos(tSec*s.fy + s.py) * Math.sin(tSec*s.fy*0.41 + s.px*0.5)) * h;
+    // stays between 0.4 and 1.0 — always at least partly visible, brighter at its peak
+    const op = 0.4 + 0.6 * (0.5 + 0.5*Math.sin(tSec*s.fo + s.po));
+    const scale = 0.9 + 0.35*(0.5 + 0.5*Math.sin(tSec*s.fo*1.3 + s.po*1.7));
+    s.el.style.transform = `translate(-50%,-50%) scale(${scale.toFixed(3)})`;
+    s.el.style.left = x + 'px';
+    s.el.style.top = y + 'px';
+    s.el.style.opacity = op.toFixed(3);
+  });
+}
+
+let clock = new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+  sphereMat.uniforms.uTime.value += dt * 20.0;
+  updateLightSpots(performance.now()/1000);
+
+  if(!isDragging){
+    velX *= 0.94; velY *= 0.94;
+    rotX += velX; rotY += velY;
+    rotX = Math.max(-1.1, Math.min(1.1, rotX));
+    if(!reducedMotion && Math.abs(velX) < 0.0002 && Math.abs(velY) < 0.0002){
+      rotY += dt * 0.02;
+    }
+  }
+  sphereGroup.rotation.x = rotX;
+  sphereGroup.rotation.y = rotY;
+
+  updateHotspots();
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* =========================================================================
+   OVERLAY
+   ========================================================================= */
+const overlay = document.getElementById('overlay');
+const overlayEyebrow = document.getElementById('overlay-eyebrow');
+const overlayTitle = document.getElementById('overlay-title');
+const overlayBody = document.getElementById('overlay-body');
+
+let activeWorksTab = 'school';
+
+function renderWorks(){
+  const wrap = document.createElement('div');
+
+  const tabs = document.createElement('div');
+  tabs.className = 'works-tabs mono';
+  [ {key:'school', label:'學校專題'}, {key:'personal', label:'個人作品'} ].forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'works-tab-btn' + (activeWorksTab===c.key ? ' active' : '');
+    btn.textContent = c.label;
+    btn.addEventListener('click', () => {
+      activeWorksTab = c.key;
+      overlayBody.innerHTML = '';
+      overlayBody.appendChild(renderWorks());
+    });
+    tabs.appendChild(btn);
+  });
+  wrap.appendChild(tabs);
+
+  if(activeWorksTab === 'school'){
+    const caption = document.createElement('p');
+    caption.className = 'works-caption';
+    caption.textContent = '集滿八顆肝已畢（或肄）業';
+    wrap.appendChild(caption);
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'works-grid';
+  const filtered = worksData.filter(w => (w.category || 'personal') === activeWorksTab);
+
+  if(filtered.length === 0){
+    const empty = document.createElement('p');
+    empty.className = 'works-empty mono';
+    empty.textContent = 'Nothing here yet.';
+    grid.appendChild(empty);
+  }
+
+  filtered.forEach(w => {
+    const card = document.createElement('a');
+    card.className = 'work-card';
+    card.href = w.link || '#';
+    const thumbStyle = w.img
+      ? `background-image:url('${w.img}'); background-size:cover; background-position:center;`
+      : `--thumb-a:${w.colorA||'#f0dccb'}; --thumb-b:${w.colorB||'#faeee2'};`;
+    card.innerHTML = `
+      <div class="work-thumb" style="${thumbStyle}"></div>
+      <div class="work-info">
+        <div class="tag mono">${w.tag||''}</div>
+        <div class="title">${w.title||'Untitled'} <span class="arrow">↗</span></div>
+      </div>`;
+    card.addEventListener('click', (e) => { e.preventDefault(); openWorkDetail(w); });
+    grid.appendChild(card);
+  });
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+function openWorkDetail(w){
+  const images = (w.images && w.images.length) ? w.images : (w.img ? [w.img] : []);
+  let idx = 0;
+
+  const detail = document.createElement('div');
+  detail.className = 'work-detail';
+
+  const back = document.createElement('button');
+  back.className = 'detail-back mono';
+  back.textContent = '← Back to Works';
+  back.addEventListener('click', () => {
+    overlayBody.innerHTML = '';
+    overlayBody.appendChild(renderWorks());
+  });
+  detail.appendChild(back);
+
+  const titleBar = document.createElement('div');
+  titleBar.className = 'detail-titlebar';
+  titleBar.textContent = w.title || 'Untitled';
+  detail.appendChild(titleBar);
+
+  const layout = document.createElement('div');
+  layout.className = 'detail-layout';
+
+  const carousel = document.createElement('div');
+  carousel.className = 'detail-carousel';
+  const img = document.createElement('div');
+  img.className = 'detail-image';
+  function updateImage(){
+    if(images[idx]){
+      img.style.background = `url('${images[idx]}') center/cover no-repeat`;
+    }else{
+      img.style.background = `linear-gradient(135deg, ${w.colorA||'#f0dccb'}, ${w.colorB||'#faeee2'})`;
+    }
+  }
+  updateImage();
+  carousel.appendChild(img);
+
+  if(images.length > 1){
+    const prev = document.createElement('button');
+    prev.className = 'detail-arrow detail-arrow-prev';
+    prev.innerHTML = '‹';
+    prev.setAttribute('aria-label','Previous image');
+    prev.addEventListener('click', () => { idx = (idx - 1 + images.length) % images.length; updateImage(); });
+    const next = document.createElement('button');
+    next.className = 'detail-arrow detail-arrow-next';
+    next.innerHTML = '›';
+    next.setAttribute('aria-label','Next image');
+    next.addEventListener('click', () => { idx = (idx + 1) % images.length; updateImage(); });
+    carousel.appendChild(prev);
+    carousel.appendChild(next);
+  }
+  layout.appendChild(carousel);
+
+  const info = document.createElement('div');
+  info.className = 'detail-info';
+  info.innerHTML = `
+    <div class="tag mono">${w.tag||''}</div>
+    <p class="detail-description">${w.description || ''}</p>
+    ${w.link ? `<a class="detail-link mono" href="${w.link}" target="_blank" rel="noopener">View Project ↗</a>` : ''}
+  `;
+  layout.appendChild(info);
+
+  detail.appendChild(layout);
+
+  overlayBody.innerHTML = '';
+  overlayBody.appendChild(detail);
+}
+
+function renderWeb(){
+  const list = document.createElement('div');
+  list.className = 'web-list';
+  webData.forEach(w => {
+    const a = document.createElement('a');
+    a.className = 'web-card';
+    a.href = w.link || '#'; a.target = '_blank'; a.rel = 'noopener';
+    a.innerHTML = `
+      <div>
+        <span class="tag mono">${w.tag||''}</span>
+        <span class="title">${w.title||'Untitled'}</span>
+      </div>
+      <span class="arrow">↗</span>`;
+    list.appendChild(a);
+  });
+  return list;
+}
+
+function renderMusic(){
+  const grid = document.createElement('div');
+  grid.className = 'bands-grid';
+  musicData.forEach(b => {
+    const card = document.createElement('div');
+    card.className = 'band-card';
+    const links = [];
+    if(b.instagram) links.push(`<a href="${b.instagram}" target="_blank" rel="noopener">Instagram ↗</a>`);
+    if(b.streamLink) links.push(`<a href="${b.streamLink}" target="_blank" rel="noopener">${b.streamLabel||'Listen'} ↗</a>`);
+    card.innerHTML = `
+      <div class="band-name">${b.name}</div>
+      <div class="band-bio">${b.bio}</div>
+      <div class="band-links">${links.join('')}</div>`;
+    grid.appendChild(card);
+  });
+  return grid;
+}
+
+function renderAbout(){
+  const wrap = document.createElement('div');
+  wrap.className = 'about-body';
+  wrap.innerHTML = aboutData.paragraphs.map(p => `<p>${p}</p>`).join('');
+  const chips = document.createElement('div');
+  chips.className = 'skills-row';
+  aboutData.skills.forEach(s => {
+    const c = document.createElement('span');
+    c.className = 'skill-chip mono';
+    c.textContent = s;
+    chips.appendChild(c);
+  });
+  wrap.appendChild(chips);
+  return wrap;
+}
+
+const SECTIONS = {
+  works: { eyebrow: 'Section / 01', title: 'Works', render: renderWorks },
+  web:   { eyebrow: 'Section / 02', title: 'Web',   render: renderWeb },
+  music: { eyebrow: 'Section / 03', title: 'Music', render: renderMusic },
+  about: { eyebrow: 'Section / 04', title: 'About', render: renderAbout },
+};
+
+let lastFocused = null;
+function openOverlay(id){
+  const s = SECTIONS[id];
+  if(!s) return;
+  overlayEyebrow.textContent = s.eyebrow;
+  overlayTitle.textContent = s.title;
+  overlayBody.innerHTML = '';
+  overlayBody.appendChild(s.render());
+  overlay.classList.add('open');
+  lastFocused = document.activeElement;
+  document.getElementById('overlay-close').focus();
+  document.body.style.overflow = 'hidden';
+}
+function closeOverlay(){
+  overlay.classList.remove('open');
+  document.body.style.overflow = '';
+  if(lastFocused) lastFocused.focus();
+}
+document.getElementById('overlay-close').addEventListener('click', closeOverlay);
+document.getElementById('overlay-backdrop').addEventListener('click', closeOverlay);
+document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && overlay.classList.contains('open')) closeOverlay(); });
+
+loadContentFromDB();
+</script>
+</body>
+</html>
